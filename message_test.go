@@ -1,9 +1,7 @@
 package utils
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +10,8 @@ import (
 )
 
 func TestPostMsg(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		description   string
 		msg           Msg
@@ -31,7 +31,7 @@ func TestPostMsg(t *testing.T) {
 			description: "failure to post message",
 			msg:         Msg{Body: "Hey!"},
 			respPostMsg: []byte(mockPostMsgErrResp),
-			wantErr:     "too_many_attachments",
+			wantErr:     "invalid_blocks",
 		},
 	}
 
@@ -45,9 +45,11 @@ func TestPostMsg(t *testing.T) {
 			testServ := httptest.NewServer(mux)
 			defer testServ.Close()
 
-			client := slack.New("x012345", slack.OptionAPIURL(fmt.Sprintf("%v/", testServ.URL)))
+			client := &Client{
+				SlackAPI: slack.New("x012345", slack.OptionAPIURL(fmt.Sprintf("%v/", testServ.URL))),
+			}
 
-			ts, err := PostMsg(client, Msg{}, "C1H9RESGL")
+			ts, err := client.PostMsg(Msg{}, "C1H9RESGL")
 
 			if tc.wantErr == "" && err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -70,6 +72,8 @@ func TestPostMsg(t *testing.T) {
 }
 
 func TestPostThreadMsg(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		description string
 		msg         Msg
@@ -85,7 +89,7 @@ func TestPostThreadMsg(t *testing.T) {
 			description: "failure to post message",
 			msg:         Msg{Body: "Hey!"},
 			respPostMsg: []byte(mockPostMsgErrResp),
-			wantErr:     "too_many_attachments",
+			wantErr:     "invalid_blocks",
 		},
 	}
 
@@ -99,9 +103,11 @@ func TestPostThreadMsg(t *testing.T) {
 			testServ := httptest.NewServer(mux)
 			defer testServ.Close()
 
-			client := slack.New("x012345", slack.OptionAPIURL(fmt.Sprintf("%v/", testServ.URL)))
+			client := &Client{
+				SlackAPI: slack.New("x012345", slack.OptionAPIURL(fmt.Sprintf("%v/", testServ.URL))),
+			}
 
-			err := PostThreadMsg(client, Msg{}, "C1H9RESGL", "1503435956.000247")
+			err := client.PostThreadMsg(Msg{}, "C1H9RESGL", "1503435956.000247")
 
 			if tc.wantErr == "" && err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -120,6 +126,8 @@ func TestPostThreadMsg(t *testing.T) {
 }
 
 func TestPostEphemeralMsg(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		description   string
 		msg           Msg
@@ -139,7 +147,7 @@ func TestPostEphemeralMsg(t *testing.T) {
 			description: "failure to post ephemeral message",
 			msg:         Msg{Body: "Hey!"},
 			respPostMsg: []byte(mockPostMsgErrResp),
-			wantErr:     "too_many_attachments",
+			wantErr:     "invalid_blocks",
 		},
 	}
 
@@ -153,9 +161,11 @@ func TestPostEphemeralMsg(t *testing.T) {
 			testServ := httptest.NewServer(mux)
 			defer testServ.Close()
 
-			client := slack.New("x012345", slack.OptionAPIURL(fmt.Sprintf("%v/", testServ.URL)))
+			client := &Client{
+				SlackAPI: slack.New("x012345", slack.OptionAPIURL(fmt.Sprintf("%v/", testServ.URL))),
+			}
 
-			err := PostEphemeralMsg(client, Msg{}, "C1H9RESGL", "U12345")
+			err := client.PostEphemeralMsg(Msg{}, "C1H9RESGL", "U12345")
 
 			if tc.wantErr == "" && err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -174,6 +184,8 @@ func TestPostEphemeralMsg(t *testing.T) {
 }
 
 func TestUpdateMsg(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		description   string
 		msg           Msg
@@ -189,7 +201,7 @@ func TestUpdateMsg(t *testing.T) {
 			description:   "failure to post message",
 			msg:           Msg{Body: "Hey!"},
 			respUpdateMsg: []byte(mockPostMsgErrResp),
-			wantErr:       "too_many_attachments",
+			wantErr:       "invalid_blocks",
 		},
 	}
 
@@ -203,9 +215,11 @@ func TestUpdateMsg(t *testing.T) {
 			testServ := httptest.NewServer(mux)
 			defer testServ.Close()
 
-			client := slack.New("x012345", slack.OptionAPIURL(fmt.Sprintf("%v/", testServ.URL)))
+			client := &Client{
+				SlackAPI: slack.New("x012345", slack.OptionAPIURL(fmt.Sprintf("%v/", testServ.URL))),
+			}
 
-			err := UpdateMsg(client, Msg{}, "C1H9RESGL", "1503435957.000237")
+			err := client.UpdateMsg(Msg{}, "C1H9RESGL", "1503435957.000237")
 
 			if tc.wantErr == "" && err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -224,6 +238,8 @@ func TestUpdateMsg(t *testing.T) {
 }
 
 func TestDeleteMsg(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		description   string
 		respDeleteMsg []byte
@@ -236,7 +252,7 @@ func TestDeleteMsg(t *testing.T) {
 		{
 			description:   "failure to post message",
 			respDeleteMsg: []byte(mockPostMsgErrResp),
-			wantErr:       "too_many_attachments",
+			wantErr:       "invalid_blocks",
 		},
 	}
 
@@ -252,8 +268,11 @@ func TestDeleteMsg(t *testing.T) {
 			testServ := httptest.NewServer(mux)
 			defer testServ.Close()
 
-			client := slack.New("x012345", slack.OptionAPIURL(fmt.Sprintf("%v/", testServ.URL)))
-			err := DeleteMsg(client, "C1H9RESGL", "1503435957.000237", fmt.Sprintf("%s%s", testServ.URL, responseURLPath))
+			client := &Client{
+				SlackAPI: slack.New("x012345", slack.OptionAPIURL(fmt.Sprintf("%v/", testServ.URL))),
+			}
+
+			err := client.DeleteMsg("C1H9RESGL", "1503435957.000237", fmt.Sprintf("%s%s", testServ.URL, responseURLPath))
 
 			if tc.wantErr == "" && err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -268,135 +287,5 @@ func TestDeleteMsg(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestSendResp(t *testing.T) {
-	var msg slack.Message
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		err := SendResp(w, slack.Message{})
-		if err != nil {
-			t.Fatalf("unexpected error handing request: %s", err)
-		}
-	}
-
-	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
-	w := httptest.NewRecorder()
-	handler(w, req)
-
-	resp := w.Result()
-	body, _ := ioutil.ReadAll(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected status code 200, got: %v", resp.StatusCode)
-	}
-
-	if resp.Header.Get("Content-Type") != "application/json" {
-		t.Fatalf("content type application/json, got: %v", resp.Header.Get("Content-Type"))
-	}
-
-	err := json.Unmarshal(body, &msg)
-	if err != nil {
-		t.Fatalf("failed to unmarshal response with error: %s", err)
-	}
-
-	if msg.ReplaceOriginal {
-		t.Fatal("replace original should be false, but is true")
-	}
-
-	if msg.DeleteOriginal {
-		t.Fatal("delete original should be false, but is true")
-	}
-}
-
-func TestReplaceOriginal(t *testing.T) {
-	var msg slack.Message
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		err := ReplaceOriginal(w, slack.Message{})
-		if err != nil {
-			t.Fatalf("unexpected error handing request: %s", err)
-		}
-	}
-
-	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
-	w := httptest.NewRecorder()
-	handler(w, req)
-
-	resp := w.Result()
-	body, _ := ioutil.ReadAll(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected status code 200, got: %v", resp.StatusCode)
-	}
-
-	if resp.Header.Get("Content-Type") != "application/json" {
-		t.Fatalf("content type application/json, got: %v", resp.Header.Get("Content-Type"))
-	}
-
-	err := json.Unmarshal(body, &msg)
-	if err != nil {
-		t.Fatalf("failed to unmarshal response with error: %s", err)
-	}
-
-	if !msg.ReplaceOriginal {
-		t.Fatal("replace original should be true, but is false")
-	}
-
-	if msg.DeleteOriginal {
-		t.Fatal("delete original should be false, but is true")
-	}
-}
-
-func TestSendOKAndDeleteOriginal(t *testing.T) {
-	var msg slack.Message
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		err := SendOKAndDeleteOriginal(w)
-		if err != nil {
-			t.Fatalf("unexpected error handing request: %s", err)
-		}
-	}
-
-	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
-	w := httptest.NewRecorder()
-	handler(w, req)
-
-	resp := w.Result()
-	body, _ := ioutil.ReadAll(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected status code 200, got: %v", resp.StatusCode)
-	}
-
-	if resp.Header.Get("Content-Type") != "application/json" {
-		t.Fatalf("content type application/json, got: %v", resp.Header.Get("Content-Type"))
-	}
-
-	err := json.Unmarshal(body, &msg)
-	if err != nil {
-		t.Fatalf("failed to unmarshal response with error: %s", err)
-	}
-
-	if msg.ReplaceOriginal {
-		t.Fatal("replace original should be false, but is true")
-	}
-
-	if !msg.DeleteOriginal {
-		t.Fatal("delete original should be true, but is false")
-	}
-}
-
-func TestSendEmptyOK(t *testing.T) {
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		SendEmptyOK(w)
-	}
-
-	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
-	w := httptest.NewRecorder()
-	handler(w, req)
-
-	resp := w.Result()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected status code 200, got: %v", resp.StatusCode)
 	}
 }

@@ -11,31 +11,92 @@ import (
 	"github.com/slack-go/slack"
 )
 
-// The following func types are used to configure custom additional actions on
-// verify middleware success/failure (e.g. logging, etc.)
+const (
+	verifyOptTypeSucceedSlashAction    verifyOptType = "succeed_slash_action_verify_opt"
+	verifyOptTypeSucceedCallbackAction verifyOptType = "succeed_callback_action_verify_opt"
+	verifyOptTypeFailAction            verifyOptType = "fail_action_verify_opt"
+	verifyOptTypeRequestLoggingConfig  verifyOptType = "request_logging_config_verify_opt"
+	verifyOptTypeMalformed             verifyOptType = "malformed_verify_opt"
+)
+
 type (
+	verifyOptType string
+
+	VerifyOpt interface {
+		optType() verifyOptType
+	}
+
+	// RequestLoggingConfig is used to configure request logging behavior
+	RequestLoggingConfig struct {
+		Enabled      bool // Global toggle for logging messages
+		MaskUserID   bool // Whether or not to conceal the user ID in log messages
+		ExcludeAdmin bool // Whether or not to exclude the admin from log messages
+	}
+
+	// The verify action types below are used to configure additional actions
+	// upon success/failure of the request verification
 	VerifySucceedSlash    func(w http.ResponseWriter, r *http.Request, cmd *slack.SlashCommand)
 	VerifySucceedCallback func(w http.ResponseWriter, r *http.Request, cmd *slack.InteractionCallback)
 	VerifyFail            func(w http.ResponseWriter, r *http.Request, err error)
 )
 
+func (cfg RequestLoggingConfig) optType() verifyOptType {
+	return verifyOptTypeRequestLoggingConfig
+}
+
+func (v VerifySucceedSlash) optType() verifyOptType {
+	if v == nil {
+		return verifyOptTypeMalformed
+	}
+	return verifyOptTypeSucceedSlashAction
+}
+
+func (v VerifySucceedCallback) optType() verifyOptType {
+	if v == nil {
+		return verifyOptTypeMalformed
+	}
+	return verifyOptTypeSucceedCallbackAction
+}
+
+func (v VerifyFail) optType() verifyOptType {
+	if v == nil {
+		return verifyOptTypeMalformed
+	}
+	return verifyOptTypeFailAction
+}
+
 // VerifySlashCommand is a middleware that will automatically verify the
 // authenticity of the incoming request and embed the unmarshalled SlashCommand
-// in the context on success. Use the optional succeed/fail parameters to
-// configure additional behavior on sucess/failure, or simply provide nil if
-// no further action is required.
-func VerifySlashCommand(signingSecret string, succeed VerifySucceedSlash, fail VerifyFail) func(next http.Handler) http.Handler {
+// in the context on success. Include VerifyOpts if you need to configure
+// additional behavior on sucess/failure or would like to enable request logging
+func (c *Client) VerifySlashCommand(signingSecret string, verifyOpts ...VerifyOpt) func(next http.Handler) http.Handler {
+	var logConfig RequestLoggingConfig
+	var succeedActions []VerifySucceedSlash
+	var failActions []VerifyFail
+
+	for _, opt := range verifyOpts {
+		switch opt.optType() {
+		case verifyOptTypeRequestLoggingConfig:
+			logConfig = opt.(RequestLoggingConfig)
+		case verifyOptTypeSucceedSlashAction:
+			succeedActions = append(succeedActions, opt.(VerifySucceedSlash))
+		case verifyOptTypeFailAction:
+			failActions = append(failActions, opt.(VerifyFail))
+		}
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cmd, err := verifySlashCommand(r, signingSecret)
 			if err != nil {
-				if fail != nil {
+				for _, fail := range failActions {
 					fail(w, r, err)
 				}
 				return
 			}
 			ctx := withSlashCommand(r.Context(), cmd)
-			if succeed != nil {
+			c.logRequest(logConfig, r.URL.Path, cmd.UserID)
+			for _, succeed := range succeedActions {
 				succeed(w, r, cmd)
 			}
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -43,23 +104,38 @@ func VerifySlashCommand(signingSecret string, succeed VerifySucceedSlash, fail V
 	}
 }
 
-// VerifyInteractionCallback is a middleware that will automatically verify
-// the authenticity of the incoming request and embed the unmarshalled
-// InteractionCallback in the context on success. Use the optional succeed/fail
-// parameters to configure additional behavior on sucess/failure, or simply
-// provide nil if no further action is required.
-func VerifyInteractionCallback(signingSecret string, succeed VerifySucceedCallback, fail VerifyFail) func(next http.Handler) http.Handler {
+// VerifyInteractionCallback is a middleware that will automatically verify the
+// authenticity of the incoming request and embed the unmarshalled InteractionCallback
+// in the context on success. Include VerifyOpts if you need to configure additional
+// behavior on sucess/failure or would like to enable request logging
+func (c *Client) VerifyInteractionCallback(signingSecret string, verifyOpts ...VerifyOpt) func(next http.Handler) http.Handler {
+	var logConfig RequestLoggingConfig
+	var succeedActions []VerifySucceedCallback
+	var failActions []VerifyFail
+
+	for _, opt := range verifyOpts {
+		switch opt.optType() {
+		case verifyOptTypeRequestLoggingConfig:
+			logConfig = opt.(RequestLoggingConfig)
+		case verifyOptTypeSucceedCallbackAction:
+			succeedActions = append(succeedActions, opt.(VerifySucceedCallback))
+		case verifyOptTypeFailAction:
+			failActions = append(failActions, opt.(VerifyFail))
+		}
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			callback, err := verifyInteractionCallback(r, signingSecret)
 			if err != nil {
-				if fail != nil {
+				for _, fail := range failActions {
 					fail(w, r, err)
 				}
 				return
 			}
 			ctx := withInteractionCallback(r.Context(), callback)
-			if succeed != nil {
+			c.logRequest(logConfig, r.URL.Path, callback.User.ID)
+			for _, succeed := range succeedActions {
 				succeed(w, r, callback)
 			}
 			next.ServeHTTP(w, r.WithContext(ctx))
